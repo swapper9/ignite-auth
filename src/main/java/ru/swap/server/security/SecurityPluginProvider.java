@@ -16,7 +16,7 @@ import org.apache.ignite.plugin.PluginProvider;
 import org.apache.ignite.plugin.PluginValidationException;
 import org.apache.ignite.plugin.security.SecurityCredentials;
 
-public class SecurityPluginProvider implements PluginProvider {
+public class SecurityPluginProvider implements PluginProvider<SecurityPluginConfiguration> {
 
     private final SecurityCredentials localNodeCredentials;
 
@@ -24,7 +24,7 @@ public class SecurityPluginProvider implements PluginProvider {
         localNodeCredentials = cred;
     }
 
-
+    @Override
     public Object createComponent(PluginContext ctx, Class cls) {
         if (cls.isAssignableFrom(GridSecurityProcessor.class))
             return new GridSecurityProcessorImpl(((IgniteEx) ctx.grid()).context(), localNodeCredentials);
@@ -32,16 +32,25 @@ public class SecurityPluginProvider implements PluginProvider {
         return null;
     }
 
+    @Override
     public String name() {
         return "SecurityPluginProvider";
     }
 
+    @Override
     public String version() {
         return "1.0.0";
     }
 
+    @Override
     public String copyright() {
-        return "for the article";
+        return "2021";
+    }
+
+    @Override
+    public IgnitePlugin plugin() {
+        return new IgnitePlugin() {
+        };
     }
 
     @Override
@@ -88,12 +97,4 @@ public class SecurityPluginProvider implements PluginProvider {
     public void validateNewNode(ClusterNode node) throws PluginValidationException {
 
     }
-
-    public IgnitePlugin plugin() {
-        return new IgnitePlugin() {
-        };
-    }
-
-    // other no-op methods of PluginProvider
-
 }

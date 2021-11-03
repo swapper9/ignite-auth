@@ -8,10 +8,9 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.plugin.security.SecurityPermission;
 import org.apache.ignite.plugin.security.SecuritySubject;
 
-
 public class SecurityContextImpl implements SecurityContext, Serializable {
 
-    private static final long serialVersionUID = -5299362655289651223L;
+    private static final long serialVersionUID = 5939299392454024977L;
 
     private final SecuritySubject subject;
 
@@ -19,23 +18,27 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
         this.subject = subject;
     }
 
+    @Override
     public SecuritySubject subject() {
         return subject;
     }
 
+    @Override
     public boolean taskOperationAllowed(String taskClsName, SecurityPermission perm) {
         return hasPermission(subject.permissions().taskPermissions().get(taskClsName), perm);
     }
 
+    @Override
     public boolean cacheOperationAllowed(String cacheName, SecurityPermission perm) {
         return hasPermission(subject.permissions().cachePermissions().get(cacheName), perm);
     }
 
+    @Override
     public boolean serviceOperationAllowed(String srvcName, SecurityPermission perm) {
         return hasPermission(subject.permissions().servicePermissions().get(srvcName), perm);
     }
 
-
+    @Override
     public boolean systemOperationAllowed(SecurityPermission perm) {
         Collection<SecurityPermission> perms = subject.permissions().systemPermissions();
 
@@ -44,7 +47,6 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
 
         return perms.stream().anyMatch(p -> perm == p);
     }
-
 
     public boolean operationAllowed(String opName, SecurityPermission perm) {
         switch (perm) {
@@ -74,13 +76,11 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
             case ADMIN_OPS:
             case JOIN_AS_SERVER:
                 return systemOperationAllowed(perm);
-
-            // You should decide what is a proper reaction when unknown permission is getting
+            // You should decide what is proper reaction when unknown permission is getting
             default:
-                throw new IllegalArgumentException("Unknown security permission: " + perm);
+                throw new IllegalArgumentException("Invalid security permission: " + perm);
         }
     }
-
 
     private boolean hasPermission(Collection<SecurityPermission> perms, SecurityPermission perm) {
         if (perms == null)
@@ -89,4 +89,10 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
         return perms.stream().anyMatch(p -> perm == p);
     }
 
+    @Override
+    public String toString() {
+        return "TestSecurityContext{" +
+                "subject=" + subject +
+                '}';
+    }
 }
