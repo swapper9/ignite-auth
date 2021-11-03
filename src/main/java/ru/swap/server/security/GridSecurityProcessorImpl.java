@@ -43,7 +43,8 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
         }
         if (login.equals("owner")) {
             return new SecurityPermissionSetBuilder()
-                    //.appendSystemPermissions(SecurityPermission.CACHE_READ,SecurityPermission.CACHE_PUT,SecurityPermission.CACHE_REMOVE)
+                    .appendServicePermissions("gridService", SecurityPermission.SERVICE_INVOKE)
+                    .appendSystemPermissions(SecurityPermission.JOIN_AS_SERVER)
                     .appendCachePermissions("userCache", SecurityPermission.CACHE_READ, SecurityPermission.CACHE_PUT, SecurityPermission.CACHE_REMOVE)
                     .build();
         }

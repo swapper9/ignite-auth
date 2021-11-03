@@ -20,11 +20,11 @@ import ru.swap.server.service.GridServiceImpl;
 public class Server {
 
     public static void main(String[] args) {
-//        ServiceConfiguration serviceCfg = new ServiceConfiguration();
-//        serviceCfg.setName(GridService.SERVICE_NAME);
-//        serviceCfg.setMaxPerNodeCount(1);
-//        serviceCfg.setTotalCount(1);
-//        serviceCfg.setService(new GridServiceImpl());
+        ServiceConfiguration serviceCfg = new ServiceConfiguration();
+        serviceCfg.setName(GridService.SERVICE_NAME);
+        serviceCfg.setMaxPerNodeCount(1);
+        serviceCfg.setTotalCount(1);
+        serviceCfg.setService(new GridServiceImpl());
 //
 //        CacheConfiguration<Long, User> userCacheCfg = new CacheConfiguration<>("userCache");
 //        userCacheCfg.setCacheMode(CacheMode.PARTITIONED);
@@ -48,6 +48,7 @@ public class Server {
 //        cfg.setPluginProviders(new SecurityPluginProvider(new SecurityCredentials("secondSubject", null)));
 
         Ignite ignite = Ignition.start("ignite-config.xml");
+        ignite.services().deploy(serviceCfg);
 
         //fill caches
         IgniteCache<Long, User> userCache = ignite.cache("userCache");
