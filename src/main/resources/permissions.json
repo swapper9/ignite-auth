@@ -1,0 +1,66 @@
+{
+  "subjects": [
+    {
+      "login": "thin-client-users",
+      "servicePermissions": [
+        {
+          "serviceName": "gridService",
+          "securityPermissions": [
+            "SERVICE_INVOKE"
+          ]
+        }
+      ],
+      "systemPermissions": [
+        {
+          "securityPermissions": [
+            "JOIN_AS_SERVER"
+          ]
+        }
+      ],
+      "cachePermissions": [
+        {
+          "cacheName": "userCache",
+          "securityPermissions": [
+            "CACHE_READ",
+            "CACHE_PUT",
+            "CACHE_REMOVE"
+          ]
+        }
+      ]
+    },
+    {
+      "login": "thin-client-permissions",
+      "servicePermissions": [
+        {
+          "serviceName": "gridService",
+          "securityPermissions": [
+            "SERVICE_INVOKE"
+          ]
+        }
+      ],
+      "systemPermissions": [
+        {
+          "securityPermissions": [
+            "JOIN_AS_SERVER"
+          ]
+        }
+      ],
+      "cachePermissions": [
+        {
+          "cacheName": "permissionCache",
+          "securityPermissions": [
+            "CACHE_READ",
+            "CACHE_PUT",
+            "CACHE_REMOVE"
+          ]
+        },
+        {
+          "cacheName": "userCache",
+          "securityPermissions": [
+            "CACHE_READ"
+          ]
+        }
+      ]
+    }
+  ]
+}

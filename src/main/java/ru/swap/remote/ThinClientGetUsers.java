@@ -19,7 +19,7 @@ public class ThinClientGetUsers {
 
         ClientConfiguration cfg = new ClientConfiguration()
                 .setAddresses("127.0.0.1:10800")
-                .setUserName("user")
+                .setUserName("thin-client-permissions")
                 .setUserPassword("pwd");
         try (IgniteClient client = Ignition.startClient(cfg)) {
 

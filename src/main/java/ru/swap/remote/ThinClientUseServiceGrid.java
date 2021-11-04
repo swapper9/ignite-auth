@@ -16,7 +16,7 @@ public class ThinClientUseServiceGrid {
     public static void main(String[] args) throws Exception {
         ClientConfiguration cfg = new ClientConfiguration()
                 .setAddresses("127.0.0.1:10800")
-                .setUserName("owner")
+                .setUserName("thin-client-users")
                 .setUserPassword("pwd");
         try (IgniteClient client = Ignition.startClient(cfg)) {
             GridService gridService = client.services()

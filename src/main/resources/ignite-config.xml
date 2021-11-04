@@ -22,8 +22,8 @@
        http://www.springframework.org/schema/beans/spring-beans.xsd">
 
     <bean id="credentials" class="org.apache.ignite.plugin.security.SecurityCredentials">
-        <constructor-arg value="firstSubject"/>
-        <constructor-arg value=""/>
+        <constructor-arg value="node"/>
+        <constructor-arg value="password"/>
     </bean>
 
     <bean class="org.apache.ignite.configuration.IgniteConfiguration">

@@ -44,7 +44,7 @@ public class SecurityPluginProvider implements PluginProvider<SecurityPluginConf
 
     @Override
     public String copyright() {
-        return "2021";
+        return "(c) 2021";
     }
 
     @Override
