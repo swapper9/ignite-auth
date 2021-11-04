@@ -18,10 +18,10 @@ import ru.swap.server.security.permissions.Subject;
 import ru.swap.server.security.permissions.SubjectList;
 import ru.swap.server.security.permissions.SystemPermission;
 
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.security.cert.Certificate;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,20 +42,6 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
     }
 
     private SecurityPermissionSet getPermissionSet(Object login) {
-
-//        Subject subject = (Subject) ctx.grid().getOrCreateCache("subjects").get(login);
-//        if (subject == null) {
-//            U.quiet(false, "[GridSecurityProcessorImpl] Login=" + login + " not exist.");
-//            return null;
-//        }
-
-//        if (subjects == null) {
-//            try {
-//                subjects = new Gson().fromJson(new FileReader("E:/permissions.json"), SubjectList.class);
-//            } catch (FileNotFoundException e) {
-//                U.quiet(true, "[GridSecurityProcessorImpl] Error loading subjects: " + e.getMessage());
-//            }
-//        }
 
         if (login.equals("node")) return SecurityPermissionSetBuilder.ALLOW_ALL;
 
@@ -97,23 +83,6 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
         }
 
         return builder.build();
-
-
-//        if (login.equals("user")) {
-//            return new SecurityPermissionSetBuilder()
-//                    .appendCachePermissions("userCache", SecurityPermission.CACHE_READ)
-//                    .appendCachePermissions("thin_clients", SecurityPermission.CACHE_READ)
-//                    .build();
-//        }
-//        if (login.equals("owner")) {
-//            return new SecurityPermissionSetBuilder()
-//                    .appendServicePermissions("gridService", SecurityPermission.SERVICE_INVOKE)
-//                    .appendSystemPermissions(SecurityPermission.JOIN_AS_SERVER)
-//                    .appendCachePermissions("userCache", SecurityPermission.CACHE_READ, SecurityPermission.CACHE_PUT, SecurityPermission.CACHE_REMOVE)
-//                    .build();
-//        }
-//
-//        return SecurityPermissionSetBuilder.ALLOW_ALL;
     }
 
 //    private PermissionCollection getSandboxPermissions(Object login) {
@@ -162,12 +131,14 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
     public SecurityContext authenticate(AuthenticationContext context) {
 
         // This is the place to check the credentials of the thin client.
+
+        //Client SSL certificates to check
+        //TODO строку login имеет смысл передавать внутри сертификата,
+        // а не брать из контекста аутентификации тонкого клиента
+        Certificate[] certificates = context.certificates();
+
         String login = (String) context.credentials().getLogin();
 
-//        if (!login.equals("thin-client-users")) {
-//            U.quiet(true, "login incorrect");
-//            return null;
-//        }
 
         ctx.grid().getOrCreateCache("subjects").putAll(subjectMap);
 

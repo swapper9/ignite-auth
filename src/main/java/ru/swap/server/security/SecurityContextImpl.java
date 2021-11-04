@@ -43,7 +43,6 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
         Collection<SecurityPermission> perms = subject.permissions().systemPermissions();
 
         if (F.isEmpty(perms))
-            //TODO поменять
             return subject.permissions().defaultAllowAll();
 
         return perms.stream().anyMatch(p -> perm == p);
