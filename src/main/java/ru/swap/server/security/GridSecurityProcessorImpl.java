@@ -17,6 +17,7 @@ import ru.swap.server.security.permissions.ServicePermission;
 import ru.swap.server.security.permissions.Subject;
 import ru.swap.server.security.permissions.SubjectList;
 import ru.swap.server.security.permissions.SystemPermission;
+import ru.swap.server.security.permissions.TaskPermission;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -55,44 +56,46 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
         }
 
         SecurityPermissionSetBuilder builder = new SecurityPermissionSetBuilder();
+
         List<ServicePermission> servicePermissions = subject.get().getServicePermissions();
         if (servicePermissions != null && !servicePermissions.isEmpty()) {
-            for (ServicePermission sp : servicePermissions) {
+            for (ServicePermission p : servicePermissions) {
                 builder.appendServicePermissions(
-                        sp.getServiceName(),
-                        sp.getSecurityPermissions().toArray(new SecurityPermission[0])
+                        p.getServiceName(),
+                        p.getSecurityPermissions().toArray(new SecurityPermission[0])
                 );
             }
         }
 
         List<SystemPermission> systemPermissions = subject.get().getSystemPermissions();
         if (systemPermissions != null && !systemPermissions.isEmpty()) {
-            for (SystemPermission sp : systemPermissions) {
-                builder.appendSystemPermissions(sp.getSecurityPermissions().toArray(new SecurityPermission[0]));
+            for (SystemPermission p : systemPermissions) {
+                builder.appendSystemPermissions(p.getSecurityPermissions().toArray(new SecurityPermission[0]));
             }
         }
 
         List<CachePermission> cachePermissions = subject.get().getCachePermissions();
         if (cachePermissions != null && !cachePermissions.isEmpty()) {
-            for (CachePermission cp : cachePermissions) {
+            for (CachePermission p : cachePermissions) {
                 builder.appendCachePermissions(
-                        cp.getCacheName(),
-                        cp.getSecurityPermissions().toArray(new SecurityPermission[0])
+                        p.getCacheName(),
+                        p.getSecurityPermissions().toArray(new SecurityPermission[0])
+                );
+            }
+        }
+
+        List<TaskPermission> taskPermissions = subject.get().getTaskPermissions();
+        if (taskPermissions != null && !taskPermissions.isEmpty()) {
+            for (TaskPermission p : taskPermissions) {
+                builder.appendTaskPermissions(
+                        p.getCacheName(),
+                        p.getSecurityPermissions().toArray(new SecurityPermission[0])
                 );
             }
         }
 
         return builder.build();
     }
-
-//    private PermissionCollection getSandboxPermissions(Object login) {
-//        PermissionCollection res = new Permissions();
-//        if (login.equals("sandboxSubject"))
-//            res.add(new PropertyPermission("java.version", "read"));
-//        else
-//            res.add(new AllPermission());
-//        return res;
-//    }
 
     /**
      * Checking the credentials of the joining node
@@ -111,7 +114,6 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
                 .address(new InetSocketAddress(F.first(node.addresses()), 0))
                 .type(SecuritySubjectType.REMOTE_NODE)
                 .permissions(getPermissionSet(credentials.getLogin()));
-        //.sandboxPermissions(getSandboxPermissions(credentials.getLogin()));
 
         U.quiet(false, "[GridSecurityProcessorImpl] Authenticate node; " +
                 "localNode=" + ctx.localNodeId() +
@@ -138,9 +140,6 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
         Certificate[] certificates = context.certificates();
 
         String login = (String) context.credentials().getLogin();
-
-
-        ctx.grid().getOrCreateCache("subjects").putAll(subjectMap);
 
         SecuritySubject subject = new SecuritySubjectImpl()
                 .id(context.subjectId())
@@ -205,8 +204,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
     }
 
     @Override
-    public void authorize(String name, SecurityPermission perm, SecurityContext secCtx)
-            throws SecurityException {
+    public void authorize(String name, SecurityPermission perm, SecurityContext secCtx) throws SecurityException {
         if (!((SecurityContextImpl) secCtx).operationAllowed(name, perm))
             throw new SecurityException("Authorization failed [permission=" + perm +
                     ", name=" + name +

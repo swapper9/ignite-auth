@@ -11,4 +11,5 @@ public class Subject implements Serializable {
     private List<ServicePermission> servicePermissions;
     private List<SystemPermission> systemPermissions;
     private List<CachePermission> cachePermissions;
+    private List<TaskPermission> taskPermissions;
 }
