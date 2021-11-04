@@ -33,25 +33,6 @@
             </map>
         </property>
 
-        <!--<property name="serviceConfiguration">
-            <list>
-                <bean class="org.apache.ignite.services.ServiceConfiguration">
-                    <property name="name" value="GridService"/>
-
-                    <property name="service">
-                        <bean class="ru.swap.server.service.GridServiceImpl"/>
-                    </property>
-
-                    <property name="totalCount" value="2"/>
-                    <property name="maxPerNodeCount" value="1"/>
-
-                    <property name="nodeFilter">
-                        <bean class="ru.swap.server.service.ServiceFilter"/>
-                    </property>
-                </bean>
-            </list>
-        </property>-->
-
         <property name="pluginProviders">
             <array>
                 <bean class="ru.swap.server.security.SecurityPluginProvider">

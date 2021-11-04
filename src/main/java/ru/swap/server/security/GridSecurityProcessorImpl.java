@@ -154,8 +154,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
 
         U.quiet(false, "[GridSecurityProcessorImpl] Authenticate thin client subject; " +
                 "subjectId=" + subject.id() +
-                " login=" + subject.login() +
-                " permissions=" + subject.permissions());
+                " login=" + subject.login());
 
         return res;
     }
@@ -182,10 +181,9 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
 
     private void loadSubjects() {
         try {
-            new Gson().fromJson(new FileReader("E:/permissions.json"), SubjectList.class)
+            new Gson().fromJson(new FileReader("config/permissions.json"), SubjectList.class)
                     .getSubjects()
                     .forEach(s -> subjectMap.put(s.getLogin(), s));
-            //ctx.grid().getOrCreateCache("subjects").putAll(subjectMap);
         } catch (IOException e) {
             U.quiet(true, "[GridSecurityProcessorImpl] Exception loading subjects: " + e.getMessage());
         }

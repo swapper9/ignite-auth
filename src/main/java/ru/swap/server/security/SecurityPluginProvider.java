@@ -34,7 +34,7 @@ public class SecurityPluginProvider implements PluginProvider<SecurityPluginConf
 
     @Override
     public String name() {
-        return "SecurityPluginProvider";
+        return "SecurityAuthPlugin";
     }
 
     @Override
