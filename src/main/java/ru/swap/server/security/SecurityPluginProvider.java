@@ -34,7 +34,7 @@ public class SecurityPluginProvider implements PluginProvider<SecurityPluginConf
 
     @Override
     public String name() {
-        return "SecurityAuthPlugin";
+        return "IgniteAuthPlugin";
     }
 
     @Override
@@ -44,7 +44,7 @@ public class SecurityPluginProvider implements PluginProvider<SecurityPluginConf
 
     @Override
     public String copyright() {
-        return "(c) 2021";
+        return "2021";
     }
 
     @Override

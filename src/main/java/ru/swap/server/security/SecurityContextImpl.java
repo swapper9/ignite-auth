@@ -41,10 +41,8 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
     @Override
     public boolean systemOperationAllowed(SecurityPermission perm) {
         Collection<SecurityPermission> perms = subject.permissions().systemPermissions();
-
         if (F.isEmpty(perms))
             return subject.permissions().defaultAllowAll();
-
         return perms.stream().anyMatch(p -> perm == p);
     }
 
@@ -76,7 +74,7 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
             case ADMIN_OPS:
             case JOIN_AS_SERVER:
                 return systemOperationAllowed(perm);
-            // You should decide what is proper reaction when unknown permission is getting
+
             default:
                 throw new IllegalArgumentException("Invalid security permission: " + perm);
         }
@@ -85,13 +83,12 @@ public class SecurityContextImpl implements SecurityContext, Serializable {
     private boolean hasPermission(Collection<SecurityPermission> perms, SecurityPermission perm) {
         if (perms == null)
             return subject.permissions().defaultAllowAll();
-
         return perms.stream().anyMatch(p -> perm == p);
     }
 
     @Override
     public String toString() {
-        return "TestSecurityContext{" +
+        return "SecurityContext{" +
                 "subject=" + subject +
                 '}';
     }

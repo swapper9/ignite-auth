@@ -6,11 +6,7 @@ import org.apache.ignite.client.ClientAuthorizationException;
 import org.apache.ignite.client.ClientCache;
 import org.apache.ignite.client.IgniteClient;
 import org.apache.ignite.configuration.ClientConfiguration;
-import ru.swap.server.service.GridService;
 import ru.swap.server.entity.User;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Log4j2
 public class ThinClientGetUsers {

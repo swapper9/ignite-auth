@@ -19,27 +19,34 @@ import ru.swap.server.security.permissions.SubjectList;
 import ru.swap.server.security.permissions.SystemPermission;
 import ru.swap.server.security.permissions.TaskPermission;
 
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URL;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SignatureException;
 import java.security.cert.Certificate;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class GridSecurityProcessorImpl extends GridProcessorAdapter implements GridSecurityProcessor {
 
     private final SecurityCredentials localNodeCredentials;
     private final Map<String, Subject> subjectMap = new HashMap<>();
+    private X509Certificate caCertificate = null;
 
     public GridSecurityProcessorImpl(GridKernalContext ctx, SecurityCredentials cred) {
         super(ctx);
         localNodeCredentials = cred;
         loadSubjects();
+        loadCACertificate();
     }
 
     private SecurityPermissionSet getPermissionSet(Object login) {
@@ -131,15 +138,24 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
      */
     @Override
     public SecurityContext authenticate(AuthenticationContext context) {
-
-        // This is the place to check the credentials of the thin client.
-
-        //Client SSL certificates to check
-        //TODO строку login имеет смысл передавать внутри сертификата,
-        // а не брать из контекста аутентификации тонкого клиента
+        //Checking client SSL certificates
         Certificate[] certificates = context.certificates();
-
-        String login = (String) context.credentials().getLogin();
+        if (certificates == null) {
+            U.quiet(true, "Client \"" + context.credentials().getLogin() + "\" has no certificate.");
+            return null;
+        }
+        List<X509Certificate> certList = Arrays.stream(certificates)
+                .map(c -> (X509Certificate) c)
+                .collect(Collectors.toList());
+        for (X509Certificate cert : certList) {
+            try {
+                cert.checkValidity();
+                cert.verify(caCertificate.getPublicKey());
+            } catch (CertificateException | NoSuchAlgorithmException | SignatureException | NoSuchProviderException | InvalidKeyException e) {
+                U.quiet(true, "Client \"" + context.credentials().getLogin() + "\" has invalid certificate: " + e);
+                return null;
+            }
+        }
 
         SecuritySubject subject = new SecuritySubjectImpl()
                 .id(context.subjectId())
@@ -185,6 +201,22 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
                     .forEach(s -> subjectMap.put(s.getLogin(), s));
         } catch (IOException e) {
             U.quiet(true, "[GridSecurityProcessorImpl] Exception loading subjects: " + e.getMessage());
+        }
+    }
+
+    private void loadCACertificate() {
+        URL url = getClass().getResource("config/ca.pem");
+        if (url == null) {
+            U.quiet(true, "Can't find ca.pem in config");
+            return;
+        }
+        try (InputStream is = new FileInputStream(url.getFile())) {
+            CertificateFactory cf = CertificateFactory.getInstance("X.509");
+            caCertificate = (X509Certificate) cf.generateCertificate(is);
+        } catch (IOException e) {
+            U.quiet(true, "CA Certificate loading I/O error: " + e);
+        } catch (CertificateException e) {
+            U.quiet(true, "CA Certificate error: " + e);
         }
     }
 
