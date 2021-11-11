@@ -24,7 +24,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -39,21 +38,23 @@ import java.util.stream.Collectors;
 public class GridSecurityProcessorImpl extends GridProcessorAdapter implements GridSecurityProcessor {
 
     private final SecurityCredentials localNodeCredentials;
-    private final Map<String, Subject> subjectMap = new HashMap<>();
+    private final Map<String, Subject> permissionMap = new HashMap<>();
     private X509Certificate caCertificate = null;
 
     public GridSecurityProcessorImpl(GridKernalContext ctx, SecurityCredentials cred) {
         super(ctx);
         localNodeCredentials = cred;
-        loadSubjects();
+        loadPermissions();
         loadCACertificate();
+    }
+
+    private SecurityPermissionSet getNodePermissionSet() {
+        return SecurityPermissionSetBuilder.ALLOW_ALL;
     }
 
     private SecurityPermissionSet getPermissionSet(Object login) {
 
-        if (login.equals("node")) return SecurityPermissionSetBuilder.ALLOW_ALL;
-
-        Optional<Subject> subject = subjectMap.entrySet().stream()
+        Optional<Subject> subject = permissionMap.entrySet().stream()
                 .filter(s -> s.getKey().equals(login))
                 .map(Map.Entry::getValue)
                 .findAny();
@@ -113,14 +114,13 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
      */
     @Override
     public SecurityContext authenticateNode(ClusterNode node, SecurityCredentials credentials) {
-        // This is the place to check the credentials of the joining node.
 
         SecuritySubject subject = new SecuritySubjectImpl()
                 .id(node.id())
                 .login(credentials.getLogin())
                 .address(new InetSocketAddress(F.first(node.addresses()), 0))
                 .type(SecuritySubjectType.REMOTE_NODE)
-                .permissions(getPermissionSet(credentials.getLogin()));
+                .permissions(getNodePermissionSet());
 
         U.quiet(false, "[GridSecurityProcessorImpl] Authenticate node; " +
                 "localNode=" + ctx.localNodeId() +
@@ -140,9 +140,9 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
     public SecurityContext authenticate(AuthenticationContext context) {
         //Checking client SSL certificates
         Certificate[] certificates = context.certificates();
-        if (certificates == null) {
+        if (certificates == null || certificates.length == 0) {
             U.quiet(true, "Client \"" + context.credentials().getLogin() + "\" has no certificate.");
-            return null;
+            throw new SecurityException("Authorization failed, no certificates found");
         }
         List<X509Certificate> certList = Arrays.stream(certificates)
                 .map(c -> (X509Certificate) c)
@@ -153,7 +153,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
                 cert.verify(caCertificate.getPublicKey());
             } catch (CertificateException | NoSuchAlgorithmException | SignatureException | NoSuchProviderException | InvalidKeyException e) {
                 U.quiet(true, "Client \"" + context.credentials().getLogin() + "\" has invalid certificate: " + e);
-                return null;
+                throw new SecurityException("Authorization failed, certificates not valid", e);
             }
         }
 
@@ -161,6 +161,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
                 .id(context.subjectId())
                 .login(context.credentials().getLogin())
                 .type(SecuritySubjectType.REMOTE_CLIENT)
+                .certificates(context.certificates())
                 .permissions(getPermissionSet(context.credentials().getLogin()));
 
         SecurityContext res = new SecurityContextImpl(subject);
@@ -194,23 +195,18 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
         super.start();
     }
 
-    private void loadSubjects() {
+    private void loadPermissions() {
         try {
             new Gson().fromJson(new FileReader("config/permissions.json"), SubjectList.class)
                     .getSubjects()
-                    .forEach(s -> subjectMap.put(s.getLogin(), s));
+                    .forEach(s -> permissionMap.put(s.getLogin(), s));
         } catch (IOException e) {
-            U.quiet(true, "[GridSecurityProcessorImpl] Exception loading subjects: " + e.getMessage());
+            U.quiet(true, "[GridSecurityProcessorImpl] Error loading permissions: " + e.getMessage());
         }
     }
 
     private void loadCACertificate() {
-        URL url = getClass().getResource("config/ca.pem");
-        if (url == null) {
-            U.quiet(true, "Can't find ca.pem in config");
-            return;
-        }
-        try (InputStream is = new FileInputStream(url.getFile())) {
+        try (InputStream is = new FileInputStream("config/ca.pem")) {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             caCertificate = (X509Certificate) cf.generateCertificate(is);
         } catch (IOException e) {
@@ -237,7 +233,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
 
     @Override
     public void authorize(String name, SecurityPermission perm, SecurityContext secCtx) throws SecurityException {
-        if (!((SecurityContextImpl) secCtx).operationAllowed(name, perm))
+        if (secCtx.subject().permissions() == null || !((SecurityContextImpl) secCtx).operationAllowed(name, perm))
             throw new SecurityException("Authorization failed [permission=" + perm +
                     ", name=" + name +
                     ", subject=" + secCtx.subject() + ']');

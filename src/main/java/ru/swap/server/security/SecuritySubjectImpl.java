@@ -2,6 +2,7 @@ package ru.swap.server.security;
 
 import java.net.InetSocketAddress;
 import java.security.PermissionCollection;
+import java.security.cert.Certificate;
 import java.util.UUID;
 
 import org.apache.ignite.plugin.security.SecurityPermissionSet;
@@ -17,6 +18,7 @@ public class SecuritySubjectImpl implements SecuritySubject {
     private Object login;
     private InetSocketAddress address;
     private SecurityPermissionSet permissions;
+    private Certificate[] certificates = null;
     private PermissionCollection sandboxPermissions;
 
     @Override
@@ -66,6 +68,16 @@ public class SecuritySubjectImpl implements SecuritySubject {
 
     public SecuritySubjectImpl permissions(SecurityPermissionSet permissions) {
         this.permissions = permissions;
+        return this;
+    }
+
+    @Override
+    public Certificate[] certificates() {
+        return certificates;
+    }
+
+    public SecuritySubjectImpl certificates(Certificate[] certificates) {
+        this.certificates = certificates;
         return this;
     }
 
