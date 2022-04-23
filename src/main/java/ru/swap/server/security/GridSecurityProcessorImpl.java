@@ -2,6 +2,7 @@ package ru.swap.server.security;
 
 import com.google.gson.Gson;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.IgniteNodeAttributes;
@@ -19,6 +20,7 @@ import ru.swap.server.security.permissions.SubjectList;
 import ru.swap.server.security.permissions.SystemPermission;
 import ru.swap.server.security.permissions.TaskPermission;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -33,19 +35,40 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class GridSecurityProcessorImpl extends GridProcessorAdapter implements GridSecurityProcessor {
 
+    private static final String MARKER = "AUTH";
+    private static final Pattern SUBJECT_NAME_PATTERN = Pattern.compile("CN=([^,]*)");
+    private final String permissionsPath;
+    private final String caPemPath;
+    private final Monitor permissionsMonitor;
+    private final Monitor certMonitor;
+    private final IgniteLogger logger;
     private final SecurityCredentials localNodeCredentials;
     private final Map<String, Subject> permissionMap = new HashMap<>();
-    private X509Certificate caCertificate = null;
+    private X509Certificate caCertificate;
 
     public GridSecurityProcessorImpl(GridKernalContext ctx, SecurityCredentials cred) {
         super(ctx);
+        this.logger = ctx.log(GridSecurityProcessorImpl.class);
         localNodeCredentials = cred;
+
+        String configPath = System.getProperty("config.path", "/opt/ignite/config/");
+        permissionsPath = configPath + "permissions.json";
+        caPemPath = configPath + "ca.pem";
+
+        permissionsMonitor = new Monitor(new File(permissionsPath), ctx);
+        permissionsMonitor.start();
+
+        certMonitor = new Monitor(new File(caPemPath), ctx);
+        certMonitor.start();
+
         loadPermissions();
-        loadCACertificate();
+        caCertificate = loadCACertificate();
     }
 
     private SecurityPermissionSet getNodePermissionSet() {
@@ -59,7 +82,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
                 .map(Map.Entry::getValue)
                 .findAny();
         if (!subject.isPresent()) {
-            U.quiet(false, "[GridSecurityProcessorImpl] Login=" + login + " not exist.");
+            logger.warning(MARKER, "[GridSecurityProcessorImpl] Login=" + login + " not exist.", null);
             return null;
         }
 
@@ -122,7 +145,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
                 .type(SecuritySubjectType.REMOTE_NODE)
                 .permissions(getNodePermissionSet());
 
-        U.quiet(false, "[GridSecurityProcessorImpl] Authenticate node; " +
+        logger.info(MARKER, "[GridSecurityProcessorImpl] Authenticate node; " +
                 "localNode=" + ctx.localNodeId() +
                 ", authenticatedNode=" + node.id() +
                 ", login=" + credentials.getLogin());
@@ -141,36 +164,54 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
         //Checking client SSL certificates
         Certificate[] certificates = context.certificates();
         if (certificates == null || certificates.length == 0) {
-            U.quiet(true, "Client \"" + context.credentials().getLogin() + "\" has no certificate.");
+            logger.info(MARKER, "Client \"" + context.credentials().getLogin() + "\" has no certificate.");
             throw new SecurityException("Authorization failed, no certificates found");
         }
+
+        String principal = ((X509Certificate) certificates[0]).getSubjectX500Principal().getName();
+        logger.info(MARKER, "Pribcipal: " + principal + ", login: " + context.credentials().getLogin());
+
+        //Got CN as SubjectName
+        Matcher matcher = SUBJECT_NAME_PATTERN.matcher(principal);
+        String subjectName = matcher.find() ? matcher.group(1).toUpperCase() : "";
+        if (subjectName.isEmpty()) {
+            logger.error(MARKER, "Client [context.address=" + context.address() + "] has invalid certificate.", null);
+            throw new SecurityException("Authorization failed, certificate not valid [context.address=" + context.address() + "]");
+        }
+
+        //Validating certificates
+        checkCAConfiguration();
         List<X509Certificate> certList = Arrays.stream(certificates)
-                .map(c -> (X509Certificate) c)
+                .map(X509Certificate.class::cast)
                 .collect(Collectors.toList());
         for (X509Certificate cert : certList) {
             try {
                 cert.checkValidity();
                 cert.verify(caCertificate.getPublicKey());
-            } catch (CertificateException | NoSuchAlgorithmException | SignatureException | NoSuchProviderException | InvalidKeyException e) {
-                U.quiet(true, "Client \"" + context.credentials().getLogin() + "\" has invalid certificate: " + e);
-                throw new SecurityException("Authorization failed, certificates not valid", e);
+            } catch (CertificateException e) {
+                logger.error(MARKER, "Client \"" + subjectName + "\" has invalid certificate: ", e);
+                throw new SecurityException("Authorization failed, certificates not valid [context.address" + context.address() + "]");
+            } catch (NoSuchAlgorithmException | SignatureException | NoSuchProviderException | InvalidKeyException e) {
+                logger.error(MARKER, "Client \"" + subjectName + "\" certificate has not verified to CA: ", e);
+                throw new SecurityException("Authorization failed, certificates not verified [context.address" + context.address() + "]");
             }
         }
 
+        checkPermissionsConfiguration();
         SecuritySubject subject = new SecuritySubjectImpl()
                 .id(context.subjectId())
-                .login(context.credentials().getLogin())
+                .login(subjectName)
                 .type(SecuritySubjectType.REMOTE_CLIENT)
                 .certificates(context.certificates())
-                .permissions(getPermissionSet(context.credentials().getLogin()));
+                .permissions(getPermissionSet(subjectName));
 
         SecurityContext res = new SecurityContextImpl(subject);
 
         ctx.grid().getOrCreateCache("thin_clients").put(subject.id(), res);
 
-        U.quiet(false, "[GridSecurityProcessorImpl] Authenticate thin client subject; " +
+        logger.info(MARKER, "[GridSecurityProcessorImpl] Authenticate thin client subject; " +
                 "subjectId=" + subject.id() +
-                " login=" + subject.login());
+                " login=" + subjectName);
 
         return res;
     }
@@ -187,7 +228,7 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
 
     @Override
     public void start() throws IgniteCheckedException {
-        U.quiet(false, "[GridSecurityProcessorImpl] Start; localNode=" + ctx.localNodeId()
+        logger.info(MARKER, "[GridSecurityProcessorImpl] Start; localNode=" + ctx.localNodeId()
                 + ", login=" + localNodeCredentials.getLogin());
 
         ctx.addNodeAttribute(IgniteNodeAttributes.ATTR_SECURITY_CREDENTIALS, localNodeCredentials);
@@ -196,34 +237,49 @@ public class GridSecurityProcessorImpl extends GridProcessorAdapter implements G
     }
 
     private void loadPermissions() {
-        try {
-            new Gson().fromJson(new FileReader("config/permissions.json"), SubjectList.class)
+        permissionMap.clear();
+        try (FileReader reader = new FileReader(permissionsPath)) {
+            if (!reader.ready()) {
+                logger.error(MARKER, "Error loading permissions.", null);
+                throw new SecurityException("Permissions loading failed");
+            }
+            new Gson().fromJson(reader, SubjectList.class)
                     .getSubjects()
                     .forEach(s -> permissionMap.put(s.getLogin(), s));
         } catch (IOException e) {
-            U.quiet(true, "[GridSecurityProcessorImpl] Error loading permissions: " + e.getMessage());
+            logger.error(MARKER, "Error loading permissions: ", e);
+            throw new SecurityException("Permissions loading failed");
         }
     }
 
-    private void loadCACertificate() {
-        try (InputStream is = new FileInputStream("config/ca.pem")) {
+    private X509Certificate loadCACertificate() {
+        try (InputStream is = new FileInputStream(caPemPath)) {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            caCertificate = (X509Certificate) cf.generateCertificate(is);
+            return (X509Certificate) cf.generateCertificate(is);
         } catch (IOException e) {
-            U.quiet(true, "CA Certificate loading I/O error: " + e);
+            throw new SecurityException("CA Certificate loading error: " + e);
         } catch (CertificateException e) {
-            U.quiet(true, "CA Certificate error: " + e);
+            throw new SecurityException("CA Certificate error: " + e);
+        }
+    }
+
+    private void checkPermissionsConfiguration() {
+        if (permissionsMonitor.hasChanged()) {
+            logger.info(MARKER, "Permissions configuration changed, reloading.");
+            loadPermissions();
+        }
+    }
+
+    private void checkCAConfiguration() {
+        if (certMonitor.hasChanged()) {
+            logger.info(MARKER, "CA Certificate changed, reloading.");
+            caCertificate = loadCACertificate();
         }
     }
 
     @Override
     public boolean enabled() {
         return true;
-    }
-
-    @Override
-    public boolean sandboxEnabled() {
-        return false;
     }
 
     @Override
